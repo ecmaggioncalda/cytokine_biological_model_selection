@@ -1,0 +1,15 @@
+wget https://github.com/katiesaund/hogwash/tarball/master -O hogwash_update.tar.gz
+tar -xvzf hogwash_update.tar.gz
+cd katiesaund-hogwash-c4d1cc4/R
+nano +1153 plotting.R
+#Updated code chunk should read
+#      cluster_col_log <- TRUE
+#      if(!is.null(snp_in_gene)){
+#        if (nrow(snp_in_gene) == 1) {
+#          # Avoid clustering issue if only one group in heatmap
+#          cluster_col_log <- FALSE
+#        }
+#      }
+cd ../..
+R CMD build katiesaund-hogwash-c4d1cc4
+R CMD INSTALL hogwash_1.2.6.tar.gz

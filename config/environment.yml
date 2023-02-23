@@ -1,0 +1,20 @@
+name: smk-update
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+  - r
+dependencies:
+  - r-base=4.2
+  - r-devtools
+  - r-doFuture
+  - r-foreach
+  - r-future
+  - r-future.apply
+  - r-mikropml
+  - r-rmarkdown
+  - r-rpart
+  - r-tidyverse
+  - r-ape
+  - r-cowplot
+  - snakemake

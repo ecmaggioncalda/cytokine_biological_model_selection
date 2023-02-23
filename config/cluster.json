@@ -1,0 +1,30 @@
+{
+ "__default__": {
+  "account_slurm": "esnitkin1",
+  "partition": "standard",
+  "jobname": "{rule}.{wildcards}",
+  "nodes": 1,
+  "procs": 1,
+  "pmem": "2GB",
+  "walltime": "24:00:00",
+  "email": "emilycma@umich.edu",
+  "mail_type": "FAIL",
+  "outfile": "log/hpc/jobs/{rule}.{wildcards}.out"
+ },
+ "prepro_overall": {
+   "pmem": "{resources.mem_mb}"
+ },
+ "generate_mikropml_df": {
+   "pmem": "{resources.mem_mb}"
+ },
+ "preprocess_data": {
+  "pmem": "{resources.mem_mb}"
+ },
+ "run_ml": {
+  "procs": "{resources.ncores}",
+  "pmem": "{resources.mem_mb}"
+ },
+ "combine_hp_performance": {
+  "pmem": "{resources.mem_mb}"
+ }
+}
