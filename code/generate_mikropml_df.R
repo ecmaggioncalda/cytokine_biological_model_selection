@@ -29,34 +29,7 @@ geno <- readr::read_delim(file = snakemake@params[['path']],
 print("geno matrix has been successfully read in")
 dim(geno)
 
-#FEATURE SELECTION ----
-feature <- read_csv(file = snakemake@input[["feature_file"]])
-
-feature_sub <- feature %>%
-  select(full_names,
-         all_of(colnames(pheno_merge))) %>%
-  filter(if_any(where(is.numeric), ~.x == 1))
-
-print("feature matrix has been successfully read in and subsetted for phenotype")
-dim(feature_sub)
-
-index <- sapply(feature_sub$full_names,
-                function(x){
-                  
-                  which(x == geno$variant)
-                  
-                })
-
-if(length(index) != length(feature_sub$full_names)){
-  stop("not all indexes were identified in the geno matrix")
-}
-if(any(is.na(index))){
-  stop("not all indices were identified in the geno matrix")
-}
-
-geno_sub <- geno[index,] %>%
-  select(variant,
-         all_of(rownames(pheno_merge))) %>%
+geno_sub <- geno %>%
   mutate(variant = gsub("_$", "", variant)) %>%
   column_to_rownames("variant")
 
