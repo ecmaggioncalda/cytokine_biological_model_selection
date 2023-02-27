@@ -53,4 +53,4 @@ pheno_sub <- pheno %>%
   drop_na()
   
 write_tsv(pheno_sub,
-          file = paste0("data/pheno/", phenotype_cols, "/handsoff.tsv"))
+          file = paste0("data/pheno/", phenotype_cols, "/biological.tsv"))
