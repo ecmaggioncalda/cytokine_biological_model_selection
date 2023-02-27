@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=hands_off_model
+#SBATCH --job-name=biological_model
 
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
