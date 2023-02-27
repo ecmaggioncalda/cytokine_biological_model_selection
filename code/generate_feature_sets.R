@@ -1,95 +1,204 @@
 #LIBRARIES ----
 library(tidyverse)
 
-#GWAS RESULTS ----
-full_hits_prime <- read_csv("../../2023_01_16_combined_geno_summary/data/full_hits.csv")
+#FEATURES ----
+cog_subset <- read_csv("data/cog_subset.csv",
+                       col_names = TRUE)
+kegg_subset <- read_csv("data/kegg_subset.csv",
+                        col_names = TRUE)
+key_terms <- read_csv("data/key_terms.csv",
+                      col_names = TRUE)
+gene_terms <- read_csv("data/gene_terms.csv",
+                       col_names = TRUE)
 
-treewas_tests <- unique(full_hits_prime$treewas.test)
-hogwash_tests <- unique(full_hits_prime$hogwash.test)[!is.na(unique(full_hits_prime$hogwash.test))]
-ml_tests <- unique(full_hits_prime$ml.test)
-genos <- unique(full_hits_prime$geno)
-cyt_groups <- unique(full_hits_prime$group)
-cytokines <- unique(full_hits_prime$pheno)
+annots_full <- read_csv("../../../data/complete_eggnog_annots.csv") %>%
+  mutate(locus_tag = str_extract(seed_eggNOG_ortholog, "CD630_....."))
 
-full_hits_bool <- full_hits_prime %>%
-  select(pheno,
-         geno,
-         group,
-         names,
-         hogwash.test,
-         hogwash_Sig_Pval,
-         treewas.test,
-         treewas.sig) %>%
-  distinct() %>%
-  pivot_wider(names_from = hogwash.test,
-              values_from = hogwash_Sig_Pval,
-              values_fn = unique) %>%
-  pivot_wider(names_from = treewas.test,
-              values_from = treewas.sig,
-              values_fn = unique) %>%
-  mutate(`NA` = NULL) %>%
-  distinct() %>%
-  group_by(pheno,
-           geno,
-           group,
-           names) %>%
-  rowwise() %>%
-  summarize(hogwash_sig = sum(c_across(c(all_of(hogwash_tests))), na.rm = TRUE),
-            treewas_sig = sum(c_across(c(all_of(treewas_tests))), na.rm = TRUE)) %>%
-  distinct() %>%
-  mutate(sig_groupings = paste0(hogwash_sig, ".", treewas_sig))
+ncbi_gene_files <- list.files("../../data/reference_gene_data",
+                              pattern = ".csv",
+                              full.names = TRUE)
 
-full_hits <- full_hits_prime %>%
-  full_join(full_hits_bool, by = intersect(colnames(full_hits_bool), colnames(full_hits_prime))) %>%
-  distinct() %>%
-  mutate(pheno.group = paste0(pheno, ".", group))
+ncbi_gene_pull <- data.table::rbindlist(lapply(ncbi_gene_files,
+                                               read_csv))
 
-sig_hits <- full_hits %>%
-  filter(sig_groupings != "0.0")
+ncbi_gene <- ncbi_gene_pull %>%
+  mutate(`Locus tag` = gsub("RS", "", `Locus tag`))
 
-sig_hits_distinct <- sig_hits %>%
-  select(pheno.group,
-         geno,
-         full_names,
-         sig_groupings) %>%
-  distinct() %>%
-  mutate(full_names = gsub("_$", "", full_names))
+colnames(ncbi_gene) <- c("Genome_loc",
+                         colnames(ncbi_gene)[2:6],
+                         "Gene_name",
+                         "locus_tag",
+                         "protein_product",
+                         "length",
+                         "description")
 
-sig_hits_full_names <- unique(sig_hits_distinct$full_names)
+combo_annots_full <- full_join(annots_full,
+                               ncbi_gene,
+                               by = intersect(colnames(annots_full),
+                                              colnames(ncbi_gene))) %>%
+  distinct()
 
-sig_hits_pivot <- sig_hits_distinct %>%
-  select(pheno.group,
-         full_names) %>%
-  pivot_wider(names_from = pheno.group,
-              values_from = pheno.group,
-              values_fn = length,
-              values_fill = 0)
+#SEARCH DESCRIPTIONS ----
+desc_index <- lapply(key_terms$Key_Terms,
+                     function(x){
+                       
+                       desc1 <- grep(x, combo_annots_full$`eggNOG free text desc.`)
+                       desc2 <- grep(x, combo_annots_full$description)
+                       
+                       out <- unique(c(desc1, desc2))
+                       
+                       return(out)
+                       
+                     })
+names(desc_index) <- key_terms$Key_Terms
+desc_index_unique <- unique(unlist(desc_index))
 
-write_csv(sig_hits_pivot,
-          "data/minimal_filtered_features.csv")
+#SEARCH GENE NAMES ----
+gene_index <- lapply(gene_terms$Gene_Names,
+                     function(x){
+                       
+                       gene1 <- grep(x, combo_annots_full$Preferred_name)
+                       gene2 <- grep(x, combo_annots_full$Gene_name)
+                       
+                       out <- unique(c(gene1, gene2))
+                       
+                       return(out)
+                       
+                     })
+names(gene_index) <- gene_terms$Gene_Names
+gene_index_unique <- unique(unlist(gene_index))
+
+#SEARCH COGS ----
+cog_index <- lapply(cog_subset$COG_Letter,
+                    function(x){
+                      
+                      out <- grep(x, combo_annots_full$`COG Functional cat.`)
+                      
+                      return(out)
+                    })
+names(cog_index) <- cog_subset$COG_Letter
+cog_index_unique <- unique(unlist(cog_index))
+
+#SEARCH KEGG ----
+kegg_index <- lapply(kegg_subset$Map_ID,
+                     function(x){
+                       
+                       out <- grep(x, combo_annots_full$KEGG_Pathway)
+                       
+                       return(out)
+                     })
+names(kegg_index) <- kegg_subset$Map_ID
+kegg_index_unique <- unique(unlist(kegg_index))
+
+#COMBINED UNIQUE INDICES ----
+index <- unique(c(desc_index_unique,
+                  gene_index_unique,
+                  cog_index_unique,
+                  kegg_index_unique))
+
+#CLEAN ANNOTS ----
+combo_annots_sub <- combo_annots_full[index,]
+
+panaroo_annots <- combo_annots_sub %>%
+  filter(dataset == "panaroo")
+
+core_annots <- combo_annots_sub %>%
+  filter(grepl("CD630_", locus_tag))
 
 #GENOS ----
-core_df <- read_delim("../../data/core_mat_sift.tsv")
-gene_df <- read_delim("../../data/gene_mat.tsv")
-pan_df <- read_delim("../../data/pan_mat.tsv")
-struct_df <- read_delim("../../data/pan_struct_mat.tsv")
+#PAN ----
+pan_df_full <- read_delim("../../data/pan_mat.tsv")
 
-geno_df <- bind_rows(core_df,
-                     gene_df,
-                     pan_df,
-                     struct_df)
+pan_variants_full <- gsub("$", "_", pan_df_full$variant)
 
-index <- sapply(sig_hits_full_names,
-                function(x){
-                  
-                  which(x == geno_df$variant)
-                  
-                })
+pan_variants_index <- sapply(pan_variants_full,
+                             function(x){
+                               
+                              any(x == panaroo_annots$`#query_name`)
+                               
+                             })
 
-length(index) == length(sig_hits_full_names) #needs to be TRUE
-any(is.na(index)) #needs to be FALSE
+table(pan_variants_index)
 
-geno_df_sub <- geno_df[index,]
+pan_df_sub <- pan_df_full[pan_variants_index,]
+
+#STRUCT ----
+struct_df_full <- read_delim("../../data/pan_struct_mat.tsv")
+
+struct_names_pull <- struct_df_full %>%
+  select(variant) %>%
+  mutate(variant = gsub("\\.\\.\\.", "~", variant)) %>%
+  deframe()
+
+struct_names_split <- str_split(struct_names_pull, "\\.", simplify = TRUE) %>%
+  as.data.frame() %>%
+  mutate(across(everything(), ~gsub("~", "\\.\\.\\.", .x)),
+         across(everything(), ~gsub("$", "_", .x)))
+
+struct_variants_index1 <- sapply(struct_names_split[,1],
+                               function(x){
+                                 
+                                 any(x == panaroo_annots$`#query_name`)
+                                 
+                               })
+
+struct_variants_index2 <- sapply(struct_names_split[,2],
+                                 function(x){
+                                   
+                                   any(x == panaroo_annots$`#query_name`)
+                                   
+                                 })
+
+struct_variants_index3 <- sapply(struct_names_split[,3],
+                                 function(x){
+                                   
+                                   any(x == panaroo_annots$`#query_name`)
+                                   
+                                 })
+
+struct_variants_index <- rowSums(cbind(struct_variants_index1,
+                                       struct_variants_index2,
+                                       struct_variants_index3)) >= 1
+
+table(struct_variants_index)
+
+struct_df_sub <- struct_df_full[struct_variants_index,]
+
+#CORE ----
+core_df_full <- read_delim("../../data/core_mat_sift.tsv")
+core_df_annots_full <- read_csv("../../data/annots_mat_sift.csv")
+
+core_variants_index <- sapply(core_df_annots_full$locus_tag,
+                              function(x){
+                                
+                                any(x == core_annots$locus_tag)
+                                
+                              })
+
+table(core_variants_index)
+
+core_df_sub <- core_df_full[core_variants_index,]
+
+#GENE ----
+gene_df_full <- read_delim("../../data/gene_mat.tsv")
+
+gene_variants_index <- sapply(gene_df_full$variant,
+                              function(x){
+                                
+                                any(x == core_annots$locus_tag)
+                                
+                              })
+
+table(gene_variants_index)
+
+gene_df_sub <- gene_df_full[gene_variants_index,]
+
+#COMBINED ----
+geno_df_sub <- bind_rows(core_df_sub,
+                         gene_df_sub,
+                         pan_df_sub,
+                         struct_df_sub)
+dim(geno_df_sub)
 
 write_delim(geno_df_sub,
             "data/combined_mat.tsv")
