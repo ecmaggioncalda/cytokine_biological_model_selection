@@ -27,7 +27,7 @@ def get_mem_mb_med(wildcards, attempt):
      return "%dGB" % (mem)
 
 def get_mem_mb_high(wildcards, attempt):
-     mem = attempt*8
+     mem = attempt*16
      return "%dGB" % (mem)
 
 def get_geno_path(wildcards):
@@ -59,8 +59,7 @@ checkpoint prepro_overall:
 rule generate_mikropml_df:
     input:
         R = "code/generate_mikropml_df.R",
-        pheno = "data/pheno/{phenotype}/{group}.tsv",
-        feature_file = "data/minimal_filtered_features.csv"
+        pheno = "data/pheno/{phenotype}/{group}.tsv"
     output:
         file_name = "data/mikropml/{phenotype}/{group}.{genome}.csv"
     params:
