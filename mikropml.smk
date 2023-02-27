@@ -71,7 +71,7 @@ rule combine_hp_performance:
     benchmark:
         "benchmarks/{phenotype}/{group}.{genome}.combine_hp_perf_{method}.txt"
     resources:
-        mem_mb = get_mem_mb_med
+        mem_mb = get_mem_mb_high
     script:
         "code/combine_hp_perf.R"
 
