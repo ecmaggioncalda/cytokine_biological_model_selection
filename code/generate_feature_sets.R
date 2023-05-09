@@ -1,111 +1,37 @@
 #LIBRARIES ----
 library(tidyverse)
 
-#FEATURES ----
-cog_subset <- read_csv("data/cog_subset.csv",
-                       col_names = TRUE)
-kegg_subset <- read_csv("data/kegg_subset.csv",
-                        col_names = TRUE)
-key_terms <- read_csv("data/key_terms.csv",
-                      col_names = TRUE)
-gene_terms <- read_csv("data/gene_terms.csv",
-                       col_names = TRUE)
-
-annots_full <- read_csv("../../../data/complete_eggnog_annots.csv") %>%
-  mutate(locus_tag = str_extract(seed_eggNOG_ortholog, "CD630_....."))
-
-ncbi_gene_files <- list.files("../../data/reference_gene_data",
-                              pattern = ".csv",
-                              full.names = TRUE)
-
-ncbi_gene_pull <- data.table::rbindlist(lapply(ncbi_gene_files,
-                                               read_csv))
-
-ncbi_gene <- ncbi_gene_pull %>%
-  mutate(`Locus tag` = gsub("RS", "", `Locus tag`))
-
-colnames(ncbi_gene) <- c("Genome_loc",
-                         colnames(ncbi_gene)[2:6],
-                         "Gene_name",
-                         "locus_tag",
-                         "protein_product",
-                         "length",
-                         "description")
-
-combo_annots_full <- full_join(annots_full,
-                               ncbi_gene,
-                               by = intersect(colnames(annots_full),
-                                              colnames(ncbi_gene))) %>%
-  distinct()
-
-#SEARCH DESCRIPTIONS ----
-desc_index <- lapply(key_terms$Key_Terms,
-                     function(x){
-                       
-                       desc1 <- grep(x, combo_annots_full$`eggNOG free text desc.`)
-                       desc2 <- grep(x, combo_annots_full$description)
-                       
-                       out <- unique(c(desc1, desc2))
-                       
-                       return(out)
-                       
-                     })
-names(desc_index) <- key_terms$Key_Terms
-desc_index_unique <- unique(unlist(desc_index))
-
-#SEARCH GENE NAMES ----
-gene_index <- lapply(gene_terms$Gene_Names,
-                     function(x){
-                       
-                       gene1 <- grep(x, combo_annots_full$Preferred_name)
-                       gene2 <- grep(x, combo_annots_full$Gene_name)
-                       
-                       out <- unique(c(gene1, gene2))
-                       
-                       return(out)
-                       
-                     })
-names(gene_index) <- gene_terms$Gene_Names
-gene_index_unique <- unique(unlist(gene_index))
-
-#SEARCH COGS ----
-cog_index <- lapply(cog_subset$COG_Letter,
-                    function(x){
-                      
-                      out <- grep(x, combo_annots_full$`COG Functional cat.`)
-                      
-                      return(out)
-                    })
-names(cog_index) <- cog_subset$COG_Letter
-cog_index_unique <- unique(unlist(cog_index))
-
-#SEARCH KEGG ----
-kegg_index <- lapply(kegg_subset$Map_ID,
-                     function(x){
-                       
-                       out <- grep(x, combo_annots_full$KEGG_Pathway)
-                       
-                       return(out)
-                     })
-names(kegg_index) <- kegg_subset$Map_ID
-kegg_index_unique <- unique(unlist(kegg_index))
-
-#COMBINED UNIQUE INDICES ----
-index <- unique(c(desc_index_unique,
-                  gene_index_unique,
-                  cog_index_unique,
-                  kegg_index_unique))
+#DATA ----
+load("../../2023_02_14_biological_model_explore/data/eggNOG_kegg_cog_annots_2023_04_11.RData")
 
 #CLEAN ANNOTS ----
-combo_annots_sub <- combo_annots_full[index,]
+index_annots_count <- index_df %>%
+  select(`#query_name`,
+         seed_eggNOG_ortholog,
+         locus_tag,
+         contains("hits")) %>%
+  distinct() %>%
+  group_by(seed_eggNOG_ortholog,
+           locus_tag) %>%
+  summarize(across(where(is.numeric), ~sum(.x)))
 
-panaroo_annots <- combo_annots_sub %>%
-  filter(dataset == "panaroo")
+length(unique(index_annots_count$locus_tag[!is.na(index_annots_count$locus_tag)]))
 
-core_annots <- combo_annots_sub %>%
-  filter(grepl("CD630_", locus_tag))
+panaroo_annots <- index_df %>%
+  filter(dataset == "panaroo") %>%
+  select(`#query_name`) %>%
+  drop_na() %>%
+  distinct()
 
-#GENOS ----
+length(unique(panaroo_annots$`#query_name`))
+
+core_annots <- index_df %>%
+  select(locus_tag) %>%
+  drop_na() %>%
+  distinct()
+
+length(unique(core_annots$locus_tag))
+
 #PAN ----
 pan_df_full <- read_delim("../../data/pan_mat.tsv")
 
@@ -114,7 +40,7 @@ pan_variants_full <- gsub("$", "_", pan_df_full$variant)
 pan_variants_index <- sapply(pan_variants_full,
                              function(x){
                                
-                              any(x == panaroo_annots$`#query_name`)
+                               any(x == panaroo_annots$`#query_name`)
                                
                              })
 
@@ -136,11 +62,11 @@ struct_names_split <- str_split(struct_names_pull, "\\.", simplify = TRUE) %>%
          across(everything(), ~gsub("$", "_", .x)))
 
 struct_variants_index1 <- sapply(struct_names_split[,1],
-                               function(x){
-                                 
-                                 any(x == panaroo_annots$`#query_name`)
-                                 
-                               })
+                                 function(x){
+                                   
+                                   any(x == panaroo_annots$`#query_name`)
+                                   
+                                 })
 
 struct_variants_index2 <- sapply(struct_names_split[,2],
                                  function(x){

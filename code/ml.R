@@ -9,30 +9,59 @@ data_processed <- readRDS(snakemake@input[["rds"]])$dat_transformed
 default_params <- mikropml::get_hyperparams_list(dataset = data_processed,
                                                  method = snakemake@params[["method"]])
 
-lambda_alt <- c(0.00001, 0.0001, 0.001, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.06, 0.1, 0.5, 1, 10)
-
-alpha_var <- snakemake@params[["alpha_var"]]
-lambda_var<- snakemake@params[["lambda_var"]]
-
-alpha_assign <- if(alpha_var == "default"){
-  default_params$alpha
+if(snakemake@params[["method"]] == "glmnet"){
+  
+  lambda_alt <- c(0.00001, 0.0001, 0.001, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.06, 0.1, 0.5, 1, 10)
+  
+  alpha_var <- snakemake@params[["alpha_var"]]
+  
+  lambda_var<- snakemake@params[["lambda_var"]]
+  
+  alpha_assign <- if(alpha_var == "default"){
+    
+    default_params$alpha
+    
+  }else{
+    
+    seq(0, 1, as.numeric(alpha_var))
+    
+  }
+  
+  lambda_assign <- if(lambda_var == "default"){
+    
+    default_params$lambda
+    
+  }else{
+    
+    lambda_alt
+    
+  }
+  
+  new_hp <- list("alpha" = alpha_assign,
+                 "lambda" = lambda_assign)
 }else{
-  seq(0, 1, as.numeric(alpha_var))
+  
+  new_hp <- default_params
+  
 }
 
-lambda_assign <- if(lambda_var == "default"){
-  default_params$lambda
-}else{
-  lambda_alt
+best_mod <- function (x, metric, maximize)
+{
+  index_x <- x %>%
+    mutate(index = 1:nrow(x)) %>%
+    drop_na()
+  
+  bestIter <- if (maximize)
+    index_x[which.max(index_x[, metric,]), "index"]
+  else index_x[which.min(index_x[, metric,]), "index"]
+  bestIter
 }
-
-new_hp <- list("alpha" = alpha_assign,
-               "lambda" = lambda_assign)
 
 ml_results <- mikropml::run_ml(
   dataset = data_processed,
   method = snakemake@params[["method"]],
   outcome_colname = snakemake@params[['outcome_colname']],
+  selection_function = snakemake@params[['selection_function']],
   find_feature_importance = TRUE,
   hyperparameters = new_hp,
   kfold = as.numeric(snakemake@params[['kfold']]),

@@ -38,7 +38,8 @@ rule run_ml:
         seed="{seed}",
         kfold=kfold,
         alpha_var=alpha_var,
-        lambda_var=lambda_var
+        lambda_var=lambda_var,
+        selection_function=selection_fn
     resources:
         ncores=ncores,
         mem_mb = get_mem_mb_low
